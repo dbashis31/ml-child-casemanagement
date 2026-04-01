@@ -236,7 +236,7 @@ X_nlp_all = tfidf.fit_transform(df["note_text"].values)
 X_nlp_train = X_nlp_all[train_idx]
 X_nlp_test = X_nlp_all[test_idx]
 
-nlp_model = LogisticRegression(max_iter=1000, multi_class="multinomial", C=1.0, random_state=SEED)
+nlp_model = LogisticRegression(max_iter=1000, C=1.0, random_state=SEED)
 nlp_model.fit(X_nlp_train, y_train)
 nlp_proba_train = nlp_model.predict_proba(X_nlp_train)
 nlp_proba_test = nlp_model.predict_proba(X_nlp_test)
@@ -245,7 +245,7 @@ nlp_proba_test = nlp_model.predict_proba(X_nlp_test)
 X_meta_train = np.hstack([xgb_proba_train, nlp_proba_train])
 X_meta_test = np.hstack([xgb_proba_test, nlp_proba_test])
 
-meta_base = LogisticRegression(max_iter=1000, multi_class="multinomial", random_state=SEED)
+meta_base = LogisticRegression(max_iter=1000, random_state=SEED)
 meta_model = CalibratedClassifierCV(meta_base, cv=3, method="isotonic")
 meta_model.fit(X_meta_train, y_train)
 meta_proba = meta_model.predict_proba(X_meta_test)
@@ -752,17 +752,11 @@ print("  STEP 7: Bias Monitoring Analysis")
 print("=" * 70)
 
 # Simulate risk predictions per group
-df["predicted_risk"] = label_enc.inverse_transform(meta_model.predict(X_meta_test).tolist()[:len(df)]
-    if len(X_meta_test) >= len(df) else
-    label_enc.inverse_transform(
-        meta_model.predict(
-            np.hstack([
-                xgb_model.predict_proba(X_tab),
-                nlp_model.predict_proba(X_nlp_all)
-            ])
-        )
-    )
-)
+X_meta_full = np.hstack([
+    xgb_model.predict_proba(X_tab),
+    nlp_model.predict_proba(X_nlp_all)
+])
+df["predicted_risk"] = label_enc.inverse_transform(meta_model.predict(X_meta_full))
 df["pred_high_risk"] = (df["predicted_risk"] == "HIGH").astype(int)
 
 # --- Graph 14: Bias - Disparate Impact Across Demographics ---
